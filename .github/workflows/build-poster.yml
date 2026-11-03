@@ -1,6 +1,6 @@
-name: Build LinkedIn Poster
+name: Build Social Media Poster
 
-# Seller-only tool - builds 3SVerse LinkedIn Poster as a SINGLE .exe
+# Seller-only tool - builds 3SVerse Social Media Poster as a SINGLE .exe
 # (Nuitka --onefile) and attaches the exe itself to a release in this
 # PRIVATE repo. No zip folder — the release asset IS the runnable exe.
 # NOTE: a onefile exe self-extracts into a cache dir at runtime, which
@@ -11,7 +11,7 @@ name: Build LinkedIn Poster
 on:
   push:
     branches: [main]
-    paths: ["linkedin_poster.py", "web_workflow.py", "branding_runtime.py", "brand_bg_*.png", "3sverse_icon.ico", "chrome-extension/**", ".github/workflows/build-poster.yml"]
+    paths: ["social_media_poster.py", "linkedin_poster.py", "linkedin_bridge.py", "meta_workflow.py", "youtube_workflow.py", "fbg_workflow.py", "web_workflow.py", "branding_runtime.py", "brand_bg_*.png", "3sverse_icon.ico", "chrome-extension/**", ".github/workflows/build-poster.yml"]
   workflow_dispatch:
 
 permissions:
@@ -29,14 +29,14 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Single source of truth: VERSION in linkedin_poster.py drives the
+      # Single source of truth: VERSION in social_media_poster.py drives the
       # exe metadata AND the release tag.
-      - name: Read version from linkedin_poster.py
+      - name: Read version from social_media_poster.py
         shell: pwsh
         run: |
-          $v = (Select-String -Path linkedin_poster.py -Pattern 'VERSION\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+          $v = (Select-String -Path social_media_poster.py -Pattern 'VERSION\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
           echo "VERSION=$v" >> $env:GITHUB_ENV
-          echo "building LinkedIn Poster $v"
+          echo "building Social Media Poster $v"
 
       - name: Install build deps
         run: python -m pip install nuitka selenium
@@ -49,9 +49,9 @@ jobs:
           --windows-console-mode=disable
           --windows-icon-from-ico=3sverse_icon.ico
           --company-name="3S Verse"
-          --product-name="3SVerse LinkedIn Poster"
+          --product-name="3SVerse Social Media Poster"
           --file-version="${{ env.VERSION }}.0" --product-version="${{ env.VERSION }}.0"
-          --file-description="3SVerse LinkedIn Poster (campaign scheduler + publisher)"
+          --file-description="3SVerse Social Media Poster (LinkedIn / Meta / YouTube / FB Groups campaign scheduler)"
           --onefile-tempdir-spec="%CACHE_DIR%/{PRODUCT}/{VERSION}"
           --python-flag=no_asserts,no_docstrings
           --include-package=selenium
@@ -62,13 +62,13 @@ jobs:
           --include-data-file=brand_bg_ring.png=brand_bg_ring.png
           --include-data-file=brand_bg_orb.png=brand_bg_orb.png
           --include-data-dir=chrome-extension=chrome-extension
-          --output-dir=dist linkedin_poster.py
+          --output-dir=dist social_media_poster.py
 
       - name: Rename exe
         shell: pwsh
         run: |
-          Move-Item dist\linkedin_poster.exe dist\3SVerse_LinkedIn_Poster.exe -Force
-          (Get-Item dist\3SVerse_LinkedIn_Poster.exe).Length
+          Move-Item dist\social_media_poster.exe dist\3SVerse_Social_Media_Poster.exe -Force
+          (Get-Item dist\3SVerse_Social_Media_Poster.exe).Length
 
       # NOTE: no actions/upload-artifact here - artifact storage quota
       # would block the build. Release assets do NOT count against it.
@@ -76,7 +76,7 @@ jobs:
       - name: Attach to release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: poster-v${{ env.VERSION }}
-          name: 3SVerse LinkedIn Poster ${{ env.VERSION }}
+          tag_name: social-poster-v${{ env.VERSION }}
+          name: 3SVerse Social Media Poster ${{ env.VERSION }}
           files: |
-            dist/3SVerse_LinkedIn_Poster.exe
+            dist/3SVerse_Social_Media_Poster.exe

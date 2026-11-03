@@ -121,6 +121,7 @@ def save_schedule(sch):
 DAY_NUM = re.compile(r"day[-_ ]?(\d{1,3})|reel[-_ ]?(\d{1,3})", re.I)
 DAY_HEAD = re.compile(r"^##\s*Day\s*(\d{1,3})\s*[—-]\s*(.*)$", re.I | re.M)
 ANN = re.compile(r"^\*\*(.+?):\*\*\s*(.*)$")
+FMT_LINE = re.compile(r"^Format:\s*(\S[\w -]*)$", re.I)
 TAG_RE = re.compile(r"^(#[A-Za-z0-9_]+\s*)+$")
 
 
@@ -161,7 +162,7 @@ def scan_campaign(folder):
             d["meta"] = dict(meta)
             fmt = meta.get("format")
             if fmt:
-                d["format"] = fmt.lower().strip()
+                d["format"] = str(fmt).lower().strip().split()[0]
             body, tags, meta = [], [], {}
 
         for block in blocks:
@@ -186,6 +187,10 @@ def scan_campaign(folder):
                 am = ANN.match(s)
                 if am:
                     meta[am.group(1).strip().lower()] = am.group(2).strip()
+                    continue
+                fm = FMT_LINE.match(s)
+                if fm:  # bare "Format: reel|story|post|short" line — same as
+                    meta["format"] = fm.group(1).strip()   # **Format:** form
                     continue
                 if TAG_RE.match(s):
                     tags.append(s)

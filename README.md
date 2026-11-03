@@ -1,152 +1,57 @@
-# 3SVerse LinkedIn Poster
+# 3SVerse Social Media Poster
 
+**Developed by www.3SVerse.com (c) 2026** · Independent vendor — not affiliated with LinkedIn, Meta, YouTube or Facebook.
 
-> **Delivery format (owner roadmap, 2026-10-07):** the LinkedIn Poster ships as a **Windows EXE** (Nuitka onefile via CI) and the same standard will carry it to an **Android APK** — same 3SVerse brand standard (new logo, fonts, colors, centered header, standard footer).
-**Developed by www.3SVerse.com (c) 2026** · Independent vendor — not affiliated with LinkedIn or VidaPay.
+One console, four platform tabs — **LINKEDIN · META · YOUTUBE · FB GROUPS** — each driving the **real workflow of its 3SVerse browser extension** through the user's own logged-in Chrome (Selenium/CDP). No official API anywhere: what the extension does, this does — including **native platform scheduling**, so a scheduled post publishes even when the app is closed.
 
-Seller tool that publishes a **campaign folder** (day-by-day images + post text) to the **3SVerse LinkedIn company page** via the official LinkedIn API — with **Post Now** for immediate publishing and **Select All → Schedule** for a hands-off, one-post-per-day cadence.
+| Tab | Extension workflow ported | What it does |
+|---|---|---|
+| LINKEDIN | Campaign Uploader v1.3.0 | Day-matched image **or** video post to the company page — composer flow: Create → media → Next → **Schedule-first-then-caption** → verified |
+| META | Meta Planner Scheduler v1.6.0 | Day-matched Reels / image posts / Stories to the FB Page + Instagram via Business Suite **Planner**, scheduled natively |
+| YOUTUBE | YouTube Campaign Uploader | Day-matched video/Short via **Studio** — Day title → video title, hashtags → tags, Shorts rule (`Format: short` / `#Shorts`) |
+| FB GROUPS | FB Group Posting v1.6.0 | Caption + hashtags + media → **ticked joined groups**, group scanner, per-group progress, ~12 s inter-group wait |
 
-The repo ships with the October 2026 30-day campaign in `campaigns/2026-10/` (30 ready-to-post 1200×627 PNGs + post text).
-
----
-
-## How it works
-
-1. **Load Campaign Folder** — pick a folder. The parser reads the campaign Markdown (`## Day N —` sections: image, body, hashtags) and pairs each `images/day-NN.png` with its text. Fallback: `day-NN.png` + `day-NN.txt` sidecars.
-2. **Tick posts** (or **Select All**).
-3. **Post Now** — publishes the ticked posts to the company page immediately (image upload + text via `ugcPosts`).
-4. **Schedule…** — assigns the ticked posts to consecutive days at a fixed local time (default **09:00** — the campaign's recommended posting time). While the app is running it publishes each slot automatically (checks every 15 s). If the app was closed at post time, the slot is flagged **MISSED** — nothing posts twice, nothing silently disappears; tick it and hit **Post Now**.
-5. **Browser Mode…** — the same campaign scheduled through **your own logged-in Chrome** — no developer app, no API token, no approval wait. This is a Python/Selenium port of the 3SVerse LinkedIn Campaign Uploader extension (full source: [`chrome-extension/`](chrome-extension/)): the app opens a Chrome window, you sign in once (as a page admin), and each post is driven through LinkedIn's own composer — **Create → Start a post → Add media → Next → Schedule post → Date/Time → Next → caption + hashtags (verified) → final Schedule**. Scheduling is committed *before* the caption is typed, so LinkedIn can never drop it. Per-post state is saved (`completed`/`failed`/`skipped`); a re-run resumes where it stopped. Once LinkedIn confirms a slot, the post publishes even if the app is closed. Settings remembers the company-page dashboard URL.
-
-Settings (stored in `%APPDATA%\3SVerse\LinkedInPoster\config.json`): Client ID / Secret, Organization ID, token (60-day), **Dry run** mode to rehearse the whole flow with zero API calls.
+Shared architecture (the proven one): **own Chrome profile per platform** (`%APPDATA%\3SVerse\SocialMediaPoster\chrome\<platform>`), verify-every-step, **resume-safe progress files** (`<platform>_progress.json` — completed items are skipped on every rerun), stop button, one shared **15-second scheduler** with **MISSED flags** — nothing ever posts twice.
 
 ---
 
-## Browser Mode (v1.1.0+) — post through your own logged-in browser
+## Run it
 
-The official API is the default path, but the exe can also drive **the real
-LinkedIn web composer** through your own logged-in Chrome — the exact workflow
-of the Chrome Campaign Uploader extension, ported to the exe (Selenium/CDP:
+```
+pip install selenium pillow
+python social_media_poster.py
+```
 
-- **Browser Mode…** button → dialog: start date/time, dashboard URL, login
-  detection with guidance, **stop after current post**, failed→abort/resume.
-- The same locator/state engine, post sequence (create → media attach →
-  schedule date/time → caption → final Schedule), and schedule-FIRST-then-
-  caption ordering as the extension — verified by an automated mock E2E test.
-- Per-item state (completed/failed/skipped) is stored in
-  `%APPDATA%\3SVerse\LinkedInPoster\web_progress.json` — completed items
-  take precedence on resume, so a closed run never double-posts.
-- The bundled `chrome-extension/` folder is the full unmodified uploader
-  extension source (provenance noted in its README).
+1. **Generate the campaign pack** — two ways:
+   - Offline, one command: **`python make_campaign.py`** (or double-click `MAKE_CAMPAIGN.bat`) — builds branded images (1200×627 LinkedIn cards, 1080×1350 posts, 1080×1920 stories), 9:16 reel/short MP4s (PIL frames + ffmpeg, ~16 s HOOK → PROBLEM → FIX → CTA), and `campaign.md` captions + unique hashtags for all platform folders in one run:
+     ```
+     python make_campaign.py                  # full month
+     python make_campaign.py --month 2026-12  # any month
+     python make_campaign.py --days 8         # quick sprint
+     python make_campaign.py --no-videos      # images + text only
+     ```
+   - Or with any AI: paste **[MEDIA_PROMPT.md](MEDIA_PROMPT.md)** into ChatGPT/Claude/Gemini/Veo/Sora and save the outputs under the filenames it specifies (same folder contract as [CAMPAIGN-FOLDERS.md](CAMPAIGN-FOLDERS.md)).
+2. **LINKEDIN / META / YOUTUBE tabs** → Browse → pick that platform's folder → **Load** → tick days → **Run Now** (starts today) or **Schedule…** (pick start date/time/interval). The app opens its own Chrome window per platform — sign in once, the workflow takes over and commits **native schedules** (Planner / Studio / LinkedIn), so publishing survives app closure.
+3. **FB GROUPS tab** → paste caption + hashtags → **Add media…** → **Scan** → tick groups → **Run Now**.
 
----
+Campaign folders follow the same contract the extensions use: `## Day N — Title` blocks in `campaign.md`, media matched by the `day-N` / `reel-N` number in the filename, one image + one video per day (details: `CAMPAIGN-FOLDERS.md`).
 
-## One-time setup (LinkedIn developer app)
+## What changed in v2.0.0
 
-You need three things from linkedin.com/developers: **Client ID**, **Client Secret**, and the page's **Organization ID**.
+- The whole app is now **Social Media Poster** — four equal tabs instead of a single LinkedIn console.
+- The official-API path (developer app, tokens, OAuth) is **gone** — every tab runs the matching extension workflow in your own Chrome.
+- `meta_workflow.py`, `youtube_workflow.py`, `fbg_workflow.py` added (Selenium ports of the three extensions); `linkedin_bridge.py` reuses the proven `web_workflow.py` engine behind the uniform `run_queue` interface.
+- Shared scheduler, progress files, store and branding moved to `%APPDATA%\3SVerse\SocialMediaPoster\`.
+- `make_campaign.py` + `MAKE_CAMPAIGN.bat` + `MEDIA_PROMPT.md` ship with the app.
 
-### Step 1 — Create the app
+## Settings & storage
 
-1. Go to <https://www.linkedin.com/developers> and sign in with the account that is a **super admin of the 3SVerse page**.
-2. **Create app** → fill name (`3SVerse Poster`), add a logo (use `3sverse_logo_header.png`), and select the **3SVerse** company page — this is how LinkedIn knows you may post as that page.
-3. Verify the app (LinkedIn emails a verification link to the page admin).
-
-### Step 2 — Request the products
-
-On the app's **Products** tab:
-
-- **Sign In with LinkedIn using OpenID Connect** — instant; identifies you (`openid profile`). Needed for **Connect** and **Test connection**.
-- **Share on LinkedIn** — instant.
-- **Community Management API** — **required to post to your Page** (`r_organization_social` + `w_organization_social`). LinkedIn reviews the request (usually 1–5 days) — Page posting works only after it shows **Approved**.
-  ⚠️ **Request button grayed out / "closed" on your app?** That's LinkedIn's rule, not a fault: the Community Management API request is only accepted on a **new app that has no other products**. Create a second app (same company page), verify it, and request it there — then use the new app's Client ID + Secret in the Poster.
-
-> The Poster requests the full scope set when connecting. If your app doesn't have the org products yet, it automatically retries with the basic sign-in scopes so Connect still succeeds — Page posting unlocks the moment LinkedIn approves **Community Management API** (just connect again afterwards).
-
-### Step 3b — Choose where posts land (Settings → "Post to")
-
-- **Company Page** — needs the *Community Management API* product. Its access form asks for a **registered business name**; LinkedIn verifies the active business registration, so an unregistered name gets rejected. Register first (a DBA / assumed-name filing is usually the fastest, cheapest option), then apply.
-- **Personal profile** — needs only *Share on LinkedIn* (instant). Posts go from your own profile to your network. Great for selling while the Page product is pending. Status bar shows **PERSONAL PROFILE** when active; Organization ID is not needed in this mode.
-
-### Step 3 — Auth credentials + redirect
-
-On the **Auth** tab:
-
-1. Copy **Client ID** and **Client Secret**.
-2. Under **OAuth 2.0 redirect URLs**, add exactly:
-
-   ```
-   http://localhost:8529/callback
-   ```
-
-   (the Poster's built-in local callback — used by the **Connect LinkedIn…** button).
-
-### Step 4 — Find the Organization ID (step by step)
-
-The Organization ID is the **numeric id of the 3SVerse company page**. Easiest ways:
-
-**Method A — view source (no tools needed)**
-
-1. Open the page: `https://www.linkedin.com/company/3sverse/`
-2. Press **Ctrl+U** (View page source).
-3. Press **Ctrl+F** and search: `urn:li:organization:`
-4. You will see `urn:li:organization:XXXXXXXXX` inside the page JSON — **the number after the last `:` is the Organization ID**.
-
-**Method B — from the page URL (admin view)**
-
-1. Open `https://www.linkedin.com/company/3sverse/admin/` (as page admin).
-2. View source (Ctrl+U) and search `organizationId` — the digits are the id.
-
-**Method C — let the Poster find it**
-
-1. Paste Client ID + Secret in Settings → **Connect LinkedIn…** → once connected, click **Find Org ID (vanity)…**, type `3sverse`, and the app resolves the numeric id from the API (`GET /v2/organizations?q=vanityName`).
-
-### Step 5 — Connect
-
-Open the Poster → **Settings** → paste Client ID / Secret / Organization ID → **Connect LinkedIn…** (browser sign-in, token valid ~60 days) → **Test connection** (checks member + organization) → **Save**.
-
-> When the token expires (2 months), just click **Connect LinkedIn…** again.
-
----
-
-## Scheduling notes
-
-- The scheduler uses the **PC's local clock**. The campaign's recommended slot is **9:00 AM Central** — keep the PC timezone set accordingly (America/Chicago).
-- Scheduling requires the app to be **running** at post time (minimized is fine). Closed app → slots flagged **MISSED**, never lost, never double-posted.
-- Already-`Posted` posts are skipped everywhere (idempotent).
-
-## Compliancy
-
-API mode goes through LinkedIn's **official REST API** with your own developer-app token — the sanctioned posting path (no scraping). **Browser Mode** drives LinkedIn's own composer UI through your own logged-in session — the same actions you would perform by hand, automated (type-and-click through the real controls; nothing injected into feeds, nothing posted without LinkedIn's own confirmations). Content of the campaign pack is for 3SVerse marketing.
-
-## Troubleshooting
-
-**“Scope … is not authorized for your application”** (on Connect) — your LinkedIn app is missing the product that scope belongs to. Fix: Products tab → request **Community Management API** (the org scopes) and add **Sign In with LinkedIn using OpenID Connect** (instant). The Poster auto-retries with basic scopes so it still connects; Page posting unlocks once LinkedIn approves Community Management API (connect again afterwards).
-
-**Community Management API request is grayed out / closed** — expected when the app already has other products (LinkedIn only allows the request on a brand-new app with no other products). Create a new app (same company page) → verify → request it there → use the new credentials in the Poster. Meanwhile you can test Page posting end-to-end on LinkedIn's sandbox pages: Org ID **2414183** (DevTestCo) or **6177438** (Test University) — posts land on LinkedIn's test pages, not yours.
-
-**Posts fail with 403 in Personal profile mode** — the token is missing `w_member_social`: add **Share on LinkedIn** to your app (instant) and connect again.
-
-**“Posts API failed …”** — the Poster publishes through the versioned **Posts API** (`/rest/posts`, header `LinkedIn-Version: 202607`) and automatically falls back to the legacy `ugcPosts` endpoint if your app hasn't been migrated yet; the error text shows both attempts.
-
-**“GET https://api.linkedin.com/v2/userinfo failed: Remote end closed connection without response”** (on Test connection) — a network-level drop (AV/proxy/VPN or a transient LinkedIn hiccup). The Poster now retries 3× automatically. If it persists: allow `3SVerse_LinkedIn_Poster.exe` in your AV, disable VPN/proxy for the test, then run **Test connection** again.
-
-**403 on Test / “Cannot resolve member identity”** — add **Sign In with LinkedIn using OpenID Connect** on the Products tab (instant) and connect again.
+Everything lives in `%APPDATA%\3SVerse\SocialMediaPoster\`: `config.json` (folders, post time, groups, media picks), `schedule.json` (slots with `fired`/`missed` flags), `<platform>_progress.json` (resume state), `chrome\<platform>\` (per-platform Chrome profiles — signing in once per platform is enough).
 
 ## Build
 
-GitHub Actions (`.github/workflows/build-poster.yml`) builds a **single portable .exe** with Nuitka `--onefile` and attaches the exe itself to the release `poster-v<VERSION>` (VERSION is read from `linkedin_poster.py`). No zip folder — the release asset IS the runnable exe. Release assets are the distribution — no artifact storage used.
-
-```
-python -m nuitka --onefile --enable-plugin=tk-inter \
-  --windows-console-mode=disable --windows-icon-from-ico=3sverse_icon.ico \
-  --include-data-file=3sverse_logo_header.png=3sverse_logo_header.png \
-  linkedin_poster.py
-```
-
-> **Antivirus / SentinelOne note (v1.0.2+):** the exe unpacks its runtime (python + tk DLLs) **once** into a stable folder — `%LOCALAPPDATA%\3SVerse LinkedIn Poster\<version>` — and reuses it on every launch (no random temp folders, no repeated DLL drops). If your AV (SentinelOne, Defender, etc.) asks on first run, choose **Allow / Trust**; afterwards nothing is re-extracted and the trigger loop stops. SentinelOne console admins can add a one-line exclusion for `3SVerse_LinkedIn_Poster.exe` if policy requires. The exe is built from this repo's own source via GitHub Actions — nothing external.
+`build-poster.yml` (GitHub Action) packages the Windows EXE via Nuitka onefile when a tag is pushed.
 
 ## License
 
-Released under the **MIT License** — see [LICENSE](LICENSE). You are free to use, modify and redistribute this tool. It is posted through LinkedIn's official developer API only; you are responsible for complying with LinkedIn's terms and your local rules when using it.
-
-Developed by www.3SVerse.com — v1.1.0
+MIT — see [LICENSE](LICENSE).

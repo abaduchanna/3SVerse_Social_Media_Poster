@@ -11,7 +11,7 @@ name: Build Social Media Poster
 on:
   push:
     branches: [main]
-    paths: ["social_media_poster.py", "linkedin_poster.py", "linkedin_bridge.py", "meta_workflow.py", "youtube_workflow.py", "fbg_workflow.py", "web_workflow.py", "branding_runtime.py", "brand_bg_*.png", "brand_linkedin.png", "brand_meta.png", "brand_youtube.png", "brand_facebook.png", "3sverse_icon.ico", "chrome-extension/**", ".github/workflows/build-poster.yml"]
+    paths: ["social_media_poster.py", "linkedin_poster.py", "linkedin_bridge.py", "meta_workflow.py", "youtube_workflow.py", "fbg_workflow.py", "web_workflow.py", "branding_runtime.py", "spiral.webp", "orb.webp", "brand_bg_*.png", "brand_linkedin.png", "brand_meta.png", "brand_youtube.png", "brand_facebook.png", "3sverse_icon.ico", "chrome-extension/**", ".github/workflows/build-poster.yml"]
   workflow_dispatch:
 
 permissions:
@@ -50,8 +50,8 @@ jobs:
       - name: Embed brand assets
         shell: bash
         run: |
-          python -c "import base64; enc=lambda p: base64.b64encode(open(p,'rb').read()).decode('ascii'); open('embedded_brand_assets.py','w').write('EMBEDDED_LINKEDIN_B64 = \"%s\"\nEMBEDDED_META_B64 = \"%s\"\nEMBEDDED_YOUTUBE_B64 = \"%s\"\nEMBEDDED_FACEBOOK_B64 = \"%s\"\nEMBEDDED_LOGO_B64 = \"%s\"\nEMBEDDED_ICO_B64 = \"%s\"\n' % (enc('brand_linkedin.png'), enc('brand_meta.png'), enc('brand_youtube.png'), enc('brand_facebook.png'), enc('3sverse_logo_header.png'), enc('3sverse_icon.ico')))"
-          python -c "import embedded_brand_assets as e; assert all(getattr(e,k) for k in ('EMBEDDED_LINKEDIN_B64','EMBEDDED_META_B64','EMBEDDED_YOUTUBE_B64','EMBEDDED_FACEBOOK_B64','EMBEDDED_LOGO_B64','EMBEDDED_ICO_B64')); print('brand assets embedded OK (4 platform marks + wordmark + ico)')"
+          python -c "import base64; enc=lambda p: base64.b64encode(open(p,'rb').read()).decode('ascii'); open('embedded_brand_assets.py','w').write('EMBEDDED_LINKEDIN_B64 = \"%s\"\nEMBEDDED_META_B64 = \"%s\"\nEMBEDDED_YOUTUBE_B64 = \"%s\"\nEMBEDDED_FACEBOOK_B64 = \"%s\"\nEMBEDDED_LOGO_B64 = \"%s\"\nEMBEDDED_ICO_B64 = \"%s\"\nEMBEDDED_SPIRAL_B64 = \"%s\"\nEMBEDDED_ORB_B64 = \"%s\"\n' % (enc('brand_linkedin.png'), enc('brand_meta.png'), enc('brand_youtube.png'), enc('brand_facebook.png'), enc('3sverse_logo_header.png'), enc('3sverse_icon.ico'), enc('spiral.webp'), enc('orb.webp')))"
+          python -c "import embedded_brand_assets as e; assert all(getattr(e,k) for k in ('EMBEDDED_LINKEDIN_B64','EMBEDDED_META_B64','EMBEDDED_YOUTUBE_B64','EMBEDDED_FACEBOOK_B64','EMBEDDED_LOGO_B64','EMBEDDED_ICO_B64','EMBEDDED_SPIRAL_B64','EMBEDDED_ORB_B64')); print('brand assets embedded OK (4 platform marks + wordmark + ico + spiral + orb)')"
 
       - name: Build with Nuitka (onefile - single portable exe)
         shell: cmd
@@ -70,8 +70,11 @@ jobs:
           --include-module=embedded_brand_assets
           --include-module=PIL.Image
           --include-module=PIL.ImageTk
+          --include-module=PIL.WebPImagePlugin
           --include-data-file=3sverse_icon.ico=3sverse_icon.ico
           --include-data-file=3sverse_logo_header.png=3sverse_logo_header.png
+          --include-data-file=spiral.webp=spiral.webp
+          --include-data-file=orb.webp=orb.webp
           --include-data-file=bg_ring.png=bg_ring.png
           --include-data-file=bg_orb.png=bg_orb.png
           --include-data-file=brand_bg_ring.png=brand_bg_ring.png

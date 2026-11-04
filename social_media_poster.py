@@ -37,7 +37,7 @@ import youtube_workflow
 import fbg_workflow
 
 APP_NAME = "3SVerse Social Media Poster"
-VERSION = "3.0.0"
+VERSION = "3.0.1"
 
 BG = lp.BG
 PANEL = lp.PANEL
@@ -871,7 +871,10 @@ class App(tk.Tk):
             pass
         self._header()
         self.body = tk.Frame(self, bg=BG)
-        self.body.pack(fill="both", expand=True)
+        # padx margins let the root brand canvas breathe on both edges —
+        # the spiral/orb show in the side strips exactly like the License
+        # Studio panels (18px site margin).
+        self.body.pack(fill="both", expand=True, padx=18)
         self._tabs()
         self._footer()      # first bottom strip packed = the bottom-most
         self._logbar()      # status line sits just above the footer
@@ -891,23 +894,18 @@ class App(tk.Tk):
         return ph
 
     def _header(self):
-        # Stacked centered hero on the animated brand art — the exact
+        # Stacked centered hero floating ON the brand canvas — the exact
         # design language of the License Studio header and the xfer PC
-        # dashboard (gui.go): wordmark on TOP, then the two-tone headline,
-        # then the eyebrow. All centered, never side by side. Version
-        # stays footer-only (License Studio rule).
+        # dashboard (gui.go): wordmark on TOP, then the two-tone
+        # headline, then the eyebrow. All centered, never side by side.
+        # The band SHRINKS to its content (no fill="x") so the animated
+        # root-canvas art (spiral top-right / orb bottom-left, one single
+        # BrandAnimation from install_branding) shows around it exactly
+        # like License Studio — the old full-width band with its own
+        # second animation hid the art and double-rendered it.
+        # Version stays footer-only (License Studio rule).
         band = tk.Frame(self, bg=BG)
-        band.pack(fill="x")
-        # Animated ring/orb hero band — the exact WiFi Transfer /
-        # 3sverse.com artwork and timing (120s ring, 140s orb, float).
-        try:
-            from branding_runtime import BrandAnimation
-            hero = tk.Canvas(band, bg=BG, highlightthickness=0,
-                             borderwidth=0, bd=0)
-            hero.place(x=0, y=0, relwidth=1, relheight=1)
-            self._header_anim = BrandAnimation(self, hero)
-        except Exception:
-            self._header_anim = None
+        band.pack(anchor="center")
         inner = tk.Frame(band, bg=BG)
         inner.pack(anchor="center", padx=24, pady=(26, 14))
         logo = self._wordmark()

@@ -11,7 +11,7 @@ name: Build Social Media Poster
 on:
   push:
     branches: [main]
-    paths: ["social_media_poster.py", "linkedin_poster.py", "linkedin_bridge.py", "meta_workflow.py", "youtube_workflow.py", "fbg_workflow.py", "web_workflow.py", "branding_runtime.py", "brand_bg_*.png", "3sverse_icon.ico", "chrome-extension/**", ".github/workflows/build-poster.yml"]
+    paths: ["social_media_poster.py", "linkedin_poster.py", "linkedin_bridge.py", "meta_workflow.py", "youtube_workflow.py", "fbg_workflow.py", "web_workflow.py", "branding_runtime.py", "brand_bg_*.png", "brand_linkedin.png", "brand_meta.png", "brand_youtube.png", "brand_facebook.png", "3sverse_icon.ico", "chrome-extension/**", ".github/workflows/build-poster.yml"]
   workflow_dispatch:
 
 permissions:
@@ -61,6 +61,10 @@ jobs:
           --include-data-file=bg_orb.png=bg_orb.png
           --include-data-file=brand_bg_ring.png=brand_bg_ring.png
           --include-data-file=brand_bg_orb.png=brand_bg_orb.png
+          --include-data-file=brand_linkedin.png=brand_linkedin.png
+          --include-data-file=brand_meta.png=brand_meta.png
+          --include-data-file=brand_youtube.png=brand_youtube.png
+          --include-data-file=brand_facebook.png=brand_facebook.png
           --include-data-dir=chrome-extension=chrome-extension
           --output-dir=dist social_media_poster.py
 

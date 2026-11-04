@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ═══════════════════════════════════════════════════════════════════════════
-# 3SVERSE SOCIAL MEDIA POSTER v2.0.0 — one console, four platform tabs.
+# 3SVERSE SOCIAL MEDIA POSTER v2.1.0 — one console, four platform tabs.
 #
 #   LINKEDIN / META / YOUTUBE / FB GROUPS — every tab drives the REAL
 #   workflow of its 3SVerse browser extension (Campaign Uploader v1.3.0,
@@ -35,7 +35,7 @@ import youtube_workflow
 import fbg_workflow
 
 APP_NAME = "3SVerse Social Media Poster"
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 
 BG = lp.BG
 PANEL = lp.PANEL
@@ -71,6 +71,41 @@ PLATS = {
             "sub": "1-Facebook-Group-Posting",
             "needs": "caption + hashtags + media → ticked groups"},
 }
+
+
+# Official platform marks for the tab chrome — vector-accurate PNGs in each
+# company's official brand colour (LinkedIn #0A66C2, Meta #0668E1,
+# YouTube #FF0000, Facebook #1877F2). Text-only fallback when PIL or the
+# asset is missing, so the console never breaks.
+LOGO_FILES = {"linkedin": "brand_linkedin.png", "meta": "brand_meta.png",
+              "youtube": "brand_youtube.png", "fbg": "brand_facebook.png"}
+_LOGO_CACHE = {}
+
+
+def platform_logo(key, height=18):
+    """PhotoImage of the platform's official mark, or None (text-only)."""
+    cached = _LOGO_CACHE.get((key, height), "missing")
+    if cached != "missing":
+        return cached
+    logo = None
+    filename = LOGO_FILES.get(key)
+    if filename:
+        here = os.path.dirname(os.path.abspath(__file__))
+        for path in (os.path.join(here, filename),
+                     os.path.join(getattr(sys, "_MEIPASS", here), filename)):
+            try:
+                from PIL import Image, ImageTk
+                image = Image.open(path).convert("RGBA")
+                scale = height / float(image.height)
+                image = image.resize(
+                    (max(1, int(image.width * scale)), height),
+                    getattr(Image, "Resampling", Image).LANCZOS)
+                logo = ImageTk.PhotoImage(image)
+                break
+            except Exception:
+                continue
+    _LOGO_CACHE[(key, height)] = logo
+    return logo
 
 
 def store_dir():
@@ -293,9 +328,16 @@ class PlatformTab(tk.Frame):
         pad = {"padx": 18, "pady": (10, 4)}
         top = tk.Frame(self, bg=BG)
         top.pack(fill="x", **pad)
-        tk.Label(top, text=self.spec["label"], bg=BG,
-                 fg=self.spec["accent"],
-                 font=(HEAD_FONT, 16, "bold")).pack(side="left")
+        logo = platform_logo(self.plat, 22)
+        if logo:
+            tk.Label(top, image=logo, compound="left",
+                     text=" " + self.spec["label"], bg=BG,
+                     fg=self.spec["accent"],
+                     font=(HEAD_FONT, 16, "bold")).pack(side="left")
+        else:
+            tk.Label(top, text=self.spec["label"], bg=BG,
+                     fg=self.spec["accent"],
+                     font=(HEAD_FONT, 16, "bold")).pack(side="left")
         tk.Label(top, text="  ·  extension workflow in your own Chrome",
                  bg=BG, fg=DIM, font=(FONT, 9)).pack(side="left")
         if self.plat != "fbg":
@@ -786,9 +828,16 @@ class App(tk.Tk):
         for i, (key, spec) in enumerate(PLATS.items()):
             tab = PlatformTab(self, key, container)
             self.frames[key] = tab
-            b = tk.Label(self.tabbar, text="  %s  " % spec["label"],
-                         bg=PANEL, fg=DIM, cursor="hand2",
-                         font=(HEAD_FONT, 11, "bold"), pady=9)
+            logo = platform_logo(key, 18)
+            if logo:
+                b = tk.Label(self.tabbar, image=logo, compound="left",
+                             text=" %s  " % spec["label"],
+                             bg=PANEL, fg=DIM, cursor="hand2",
+                             font=(HEAD_FONT, 11, "bold"), pady=9)
+            else:
+                b = tk.Label(self.tabbar, text="  %s  " % spec["label"],
+                             bg=PANEL, fg=DIM, cursor="hand2",
+                             font=(HEAD_FONT, 11, "bold"), pady=9)
             b.pack(side="left", padx=(6 if i == 0 else 2, 2))
             b.bind("<Button-1>", lambda e, k=key: self.show_tab(k))
             self.tab_btns[key] = b

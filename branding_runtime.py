@@ -45,6 +45,10 @@ def apply_native_window_branding(window, dark: bool = True) -> None:
     """Set the exact website favicon and native Windows title-bar colours."""
     try:
         icon = _asset_path("3sverse_website_favicon.ico")
+        if not os.path.exists(icon):
+            # Repo / exe fallback: the same 3SV logo mark shipped as
+            # 3sverse_icon.ico (v1.0.4 icon parity).
+            icon = _asset_path("3sverse_icon.ico")
         if os.path.exists(icon):
             window.iconbitmap(default=icon)
     except Exception:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ═══════════════════════════════════════════════════════════════════════════
-# 3SVERSE SOCIAL MEDIA POSTER v2.1.0 — one console, four platform tabs.
+# 3SVERSE SOCIAL MEDIA POSTER v2.2.0 — one console, four platform tabs.
 #
 #   LINKEDIN / META / YOUTUBE / FB GROUPS — every tab drives the REAL
 #   workflow of its 3SVerse browser extension (Campaign Uploader v1.3.0,
@@ -35,7 +35,7 @@ import youtube_workflow
 import fbg_workflow
 
 APP_NAME = "3SVerse Social Media Poster"
-VERSION = "2.1.0"
+VERSION = "2.2.0"
 
 BG = lp.BG
 PANEL = lp.PANEL
@@ -790,6 +790,15 @@ class App(tk.Tk):
         for _d in (10, 250, 800, 1500):
             self.after(_d, _reassert_zoomed)
         self.minsize(980, 640)
+        # Brand chrome parity with License Studio / WiFi Transfer:
+        # website favicon + native dark title bar (DWM) + the ring/orb
+        # root canvas at the exact site timing (120s ring spin, 140s orb
+        # spin, 12px/13s float).
+        try:
+            from branding_runtime import install_branding
+            install_branding(self, dark=True, background=BG)
+        except Exception:
+            pass
         self._header()
         self.body = tk.Frame(self, bg=BG)
         self.body.pack(fill="both", expand=True)
@@ -801,13 +810,50 @@ class App(tk.Tk):
         self.after(200, self._drain)
 
     # ── chrome ────────────────────────────────────────────────────────
+    def _wordmark(self):
+        """3SVerse wordmark header image - same header branding as the
+        xfer PC dashboard (gui.go header img) and License Studio.
+        Falls back to the plain-text wordmark when asset/PIL missing."""
+        try:
+            from PIL import Image, ImageTk
+            resampling = getattr(Image, "Resampling", Image)
+            path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "3sverse_logo_header.png")
+            if not os.path.exists(path):
+                return None
+            img = Image.open(path).convert("RGBA")
+            if img.height > 58:
+                img = img.resize(
+                    (max(1, int(img.width * 58 / img.height)), 58),
+                    resampling.LANCZOS)
+            ph = ImageTk.PhotoImage(img)
+            self._hdr_logo = ph          # keep referenced
+            return ph
+        except Exception:
+            return None
+
     def _header(self):
         bar = tk.Frame(self, bg=PANEL)
         bar.pack(fill="x")
+        # Animated ring/orb band inside the header - the exact WiFi
+        # Transfer / 3sverse.com hero artwork and timing, same as the
+        # License Studio header band (branding_runtime.BrandAnimation).
+        try:
+            from branding_runtime import BrandAnimation
+            band = tk.Canvas(bar, bg=PANEL, highlightthickness=0,
+                             borderwidth=0, bd=0)
+            band.place(x=0, y=0, relwidth=1, relheight=1)
+            self._header_anim = BrandAnimation(self, band)
+        except Exception:
+            self._header_anim = None
         inner = tk.Frame(bar, bg=PANEL)
         inner.pack(fill="x", padx=18, pady=12)
-        tk.Label(inner, text="3SVERSE", bg=PANEL, fg=CYAN,
-                 font=(HEAD_FONT, 17, "bold")).pack(side="left")
+        logo = self._wordmark()
+        if logo:
+            tk.Label(inner, image=logo, bg=PANEL, bd=0).pack(side="left")
+        else:
+            tk.Label(inner, text="3SVERSE", bg=PANEL, fg=CYAN,
+                     font=(HEAD_FONT, 17, "bold")).pack(side="left")
         tk.Label(inner, text=" SOCIAL MEDIA POSTER", bg=PANEL, fg=TEXT,
                  font=(HEAD_FONT, 17, "bold")).pack(side="left")
         tk.Label(inner, text="v%s" % VERSION, bg=PANEL, fg=DIM,

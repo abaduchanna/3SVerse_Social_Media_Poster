@@ -36,6 +36,15 @@ python social_media_poster.py
 
 Campaign folders follow the same contract the extensions use: `## Day N — Title` blocks in `campaign.md`, media matched by the `day-N` / `reel-N` number in the filename, one image + one video per day (details: `CAMPAIGN-FOLDERS.md`).
 
+## What changed in v3.0.0
+
+- **Complete UI/UX overhaul to the Xfer / License Studio design language**: stacked centered hero header (3SVerse wordmark on top, "SOCIAL MEDIA POSTER" two-tone headline, eyebrow sub-heading), tri-gradient cyan→periwinkle→magenta bar, License Studio footer (vendor left · developed-by center · version + About right).
+- **Dark everywhere, guaranteed**: the post-list `ttk.Treeview` and its scrollbar are now styled dark (`clam` base) — the last white panel is gone.
+- **Brand art baked in**: the four official platform marks, the header wordmark and the window icon are embedded into the exe as base64 (`embedded_brand_assets.py`, generated in CI) and load **embedded-first** with a PhotoImage fallback — the marks can never silently fall back to text-only tabs again (the v2.x exe missed Pillow on the runner).
+- **Window opens centered** on the screen exactly like the Xfer PC window (`Center: true`) — no more force-maximize.
+- **Fonts standardized**: Segoe UI body/headings always; mono follows the xfer `gui.go` stack (DM Mono → Cascadia Mono → Consolas).
+- Native DWM dark title bar + website favicon (from v2.2.0) retained.
+
 ## What changed in v2.0.0
 
 - The whole app is now **Social Media Poster** — four equal tabs instead of a single LinkedIn console.
@@ -50,7 +59,7 @@ Everything lives in `%APPDATA%\3SVerse\SocialMediaPoster\`: `config.json` (folde
 
 ## Build
 
-`build-poster.yml` (GitHub Action) packages the Windows EXE via Nuitka onefile when a tag is pushed.
+`build-poster.yml` (GitHub Action) packages the Windows EXE via Nuitka onefile on every push to main (the release asset IS the exe).
 
 ## License
 

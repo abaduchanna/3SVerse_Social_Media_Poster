@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ═══════════════════════════════════════════════════════════════════════════
-# 3SVERSE SOCIAL MEDIA POSTER v2.2.0 — one console, four platform tabs.
+# 3SVERSE SOCIAL MEDIA POSTER v3.0.0 — one console, four platform tabs.
 #
 #   LINKEDIN / META / YOUTUBE / FB GROUPS — every tab drives the REAL
 #   workflow of its 3SVerse browser extension (Campaign Uploader v1.3.0,
@@ -17,6 +17,8 @@
 #   Developed by www.3SVerse.com (c) 2026 — not affiliated with LinkedIn,
 #   Meta, YouTube or Facebook.
 # ═══════════════════════════════════════════════════════════════════════════
+import base64
+import io
 import json
 import os
 import queue
@@ -35,11 +37,12 @@ import youtube_workflow
 import fbg_workflow
 
 APP_NAME = "3SVerse Social Media Poster"
-VERSION = "2.2.0"
+VERSION = "3.0.0"
 
 BG = lp.BG
 PANEL = lp.PANEL
 FIELD = lp.FIELD
+BORDER = lp.BORDER
 TEXT = lp.TEXT
 DIM = lp.DIM
 CYAN = lp.CYAN
@@ -47,9 +50,14 @@ LIME = lp.LIME
 WARN = lp.WARN
 DANGER = lp.DANGER
 PERI = lp.PERI
-FONT = lp.FONT
-MONO = lp.MONO
-HEAD_FONT = lp.HEAD_FONT
+MAGENTA = lp.MAGENTA
+GRAD = lp.GRAD
+# Font standard = License Studio / the xfer PC dashboard (owner order):
+# body and headings are ALWAYS Segoe UI (what gui.go resolves to on
+# Windows); mono follows the gui.go stack DM Mono -> Cascadia -> Consolas.
+FONT = "Segoe UI"
+HEAD_FONT = FONT
+MONO = "Consolas"
 
 STORE_DIR = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")),
                          "3SVerse", "SocialMediaPoster")
@@ -75,11 +83,66 @@ PLATS = {
 
 # Official platform marks for the tab chrome — vector-accurate PNGs in each
 # company's official brand colour (LinkedIn #0A66C2, Meta #0668E1,
-# YouTube #FF0000, Facebook #1877F2). Text-only fallback when PIL or the
-# asset is missing, so the console never breaks.
+# YouTube #FF0000, Facebook #1877F2). Assets load EMBEDDED-FIRST (the CI
+# bakes embedded_brand_assets.py into the exe — works in every packaging
+# mode), then from disk. Pillow renders them crisp; a plain
+# PhotoImage+subsample path keeps them alive without Pillow, so the marks
+# can never silently fall back to text-only tabs again.
 LOGO_FILES = {"linkedin": "brand_linkedin.png", "meta": "brand_meta.png",
               "youtube": "brand_youtube.png", "fbg": "brand_facebook.png"}
+_EMBED_KEYS = {"brand_linkedin.png": "EMBEDDED_LINKEDIN_B64",
+               "brand_meta.png": "EMBEDDED_META_B64",
+               "brand_youtube.png": "EMBEDDED_YOUTUBE_B64",
+               "brand_facebook.png": "EMBEDDED_FACEBOOK_B64",
+               "3sverse_logo_header.png": "EMBEDDED_LOGO_B64",
+               "3sverse_icon.ico": "EMBEDDED_ICO_B64"}
 _LOGO_CACHE = {}
+
+
+def _brand_bytes(name):
+    """Raw bytes of a brand asset: embedded module first, disk second."""
+    key = _EMBED_KEYS.get(name)
+    if key:
+        try:
+            import embedded_brand_assets
+            b64 = getattr(embedded_brand_assets, key, "")
+            if b64:
+                return base64.b64decode(b64)
+        except Exception:
+            pass
+    here = os.path.dirname(os.path.abspath(__file__))
+    for path in (os.path.join(here, name),
+                 os.path.join(getattr(sys, "_MEIPASS", here), name)):
+        try:
+            with open(path, "rb") as fh:
+                return fh.read()
+        except Exception:
+            continue
+    return None
+
+
+def _photo(raw, height):
+    """RGBA bytes -> PhotoImage at `height` px (Pillow or subsample)."""
+    if not raw:
+        return None
+    try:
+        from PIL import Image, ImageTk
+        image = Image.open(io.BytesIO(raw)).convert("RGBA")
+        scale = height / float(image.height)
+        image = image.resize(
+            (max(1, int(image.width * scale)), height),
+            getattr(Image, "Resampling", Image).LANCZOS)
+        return ImageTk.PhotoImage(image)
+    except Exception:
+        pass
+    try:
+        ph = tk.PhotoImage(data=base64.b64encode(raw).decode("ascii"))
+        factor = max(1, int(round(ph.height() / float(height))))
+        if factor > 1:
+            ph = ph.subsample(factor, factor)
+        return ph
+    except Exception:
+        return None
 
 
 def platform_logo(key, height=18):
@@ -87,23 +150,7 @@ def platform_logo(key, height=18):
     cached = _LOGO_CACHE.get((key, height), "missing")
     if cached != "missing":
         return cached
-    logo = None
-    filename = LOGO_FILES.get(key)
-    if filename:
-        here = os.path.dirname(os.path.abspath(__file__))
-        for path in (os.path.join(here, filename),
-                     os.path.join(getattr(sys, "_MEIPASS", here), filename)):
-            try:
-                from PIL import Image, ImageTk
-                image = Image.open(path).convert("RGBA")
-                scale = height / float(image.height)
-                image = image.resize(
-                    (max(1, int(image.width * scale)), height),
-                    getattr(Image, "Resampling", Image).LANCZOS)
-                logo = ImageTk.PhotoImage(image)
-                break
-            except Exception:
-                continue
+    logo = _photo(_brand_bytes(LOGO_FILES.get(key, "")), height)
     _LOGO_CACHE[(key, height)] = logo
     return logo
 
@@ -288,25 +335,46 @@ def platform_items(plat, posts, slots, cfg):
 # ═══════════════════════════════════════════════════════════════════════════
 # GUI
 # ═══════════════════════════════════════════════════════════════════════════
-def make_grad_bar(parent, height=3, c1="#6ee7ef", c2="#78a6ff"):
-    cv = tk.Canvas(parent, height=height, highlightthickness=0,
-                   bg=parent["bg"])
-    cv.bind("<Configure>", lambda e: _paint(cv, c1, c2))
-    return cv
+def _probe_fonts(root):
+    """Segoe UI everywhere (xfer / License Studio standard); mono follows
+    the gui.go stack: DM Mono -> Cascadia Mono -> Consolas."""
+    global FONT, MONO, HEAD_FONT
+    FONT = HEAD_FONT = "Segoe UI"
+    try:
+        import tkinter.font as tkfont
+        fams = set(tkfont.families(root))
+        for fam in ("DM Mono", "Cascadia Mono", "Consolas"):
+            if fam in fams:
+                MONO = fam
+                break
+    except Exception:
+        pass
 
 
-def _paint(cv, c1, c2):
-    cv.delete("g")
-    w = cv.winfo_width()
-    if w < 2:
-        return
-    for x in range(w):
-        t = x / max(1, w - 1)
-        r = int(0x6e + (0x78 - 0x6e) * t)
-        g = int(0xe7 + (0xa6 - 0xe7) * t)
-        b = int(0xef + (0xff - 0xef) * t)
-        cv.create_line(x, 0, x, cv.winfo_height(),
-                       fill="#%02x%02x%02x" % (r, g, b), tags="g")
+def install_dark_ttk(root):
+    """Dark theme for every ttk widget (clam base) — the post lists and
+    scrollbars must never render with the light system theme again."""
+    style = ttk.Style(root)
+    try:
+        style.theme_use("clam")
+    except Exception:
+        pass
+    style.configure("Poster.Treeview", background=FIELD, foreground=TEXT,
+                    fieldbackground=FIELD, borderwidth=0, relief="flat",
+                    rowheight=26, font=(FONT, 9))
+    style.configure("Poster.Treeview.Heading", background=PANEL,
+                    foreground=DIM, relief="flat", borderwidth=0,
+                    font=(MONO, 8, "bold"))
+    style.map("Poster.Treeview",
+              background=[("selected", "#1c2440")],
+              foreground=[("selected", TEXT)])
+    style.map("Poster.Treeview.Heading",
+              background=[("active", PANEL)])
+    style.configure("Poster.Vertical.TScrollbar", background=FIELD,
+                    troughcolor=BG, borderwidth=0, arrowcolor=DIM,
+                    relief="flat")
+    style.map("Poster.Vertical.TScrollbar",
+              background=[("active", BORDER), ("pressed", BORDER)])
 
 
 class PlatformTab(tk.Frame):
@@ -351,16 +419,19 @@ class PlatformTab(tk.Frame):
                            fg=TEXT, bd=0, insertbackground=TEXT,
                            font=(MONO, 9))
             ent.pack(side="left", fill="x", expand=True, padx=8)
-            self._btn(row, "Browse…", self.browse).pack(side="left")
+            self._btn(row, "Browse...", self.browse).pack(side="left")
             self._btn(row, "Load", self.load_folder).pack(side="left",
                                                           padx=(6, 0))
             tk.Label(self, text="Wants: %s" % self.spec["needs"],
                      bg=BG, fg=DIM, font=(FONT, 8)).pack(
                 anchor="w", padx=18, pady=(4, 0))
+            listrow = tk.Frame(self, bg=BG)
+            listrow.pack(fill="both", expand=True, padx=18, pady=8)
             self.tree = ttk.Treeview(
-                self, columns=("tick", "day", "title", "media",
-                               "schedule", "status"),
-                show="headings", height=12, selectmode="none")
+                listrow, columns=("tick", "day", "title", "media",
+                                  "schedule", "status"),
+                show="headings", height=12, selectmode="none",
+                style="Poster.Treeview")
             for col, w, an in (("tick", 44, "center"), ("day", 52, "center"),
                                ("title", 380, "w"), ("media", 110, "w"),
                                ("schedule", 150, "w"), ("status", 190, "w")):
@@ -368,7 +439,12 @@ class PlatformTab(tk.Frame):
                 self.tree.column(col, width=w, anchor=an)
             self.tree.tag_configure("done", foreground="#5d7a52")
             self.tree.tag_configure("failed", foreground=DANGER)
-            self.tree.pack(fill="both", expand=True, padx=18, pady=8)
+            vsb = ttk.Scrollbar(listrow, orient="vertical",
+                                command=self.tree.yview,
+                                style="Poster.Vertical.TScrollbar")
+            self.tree.configure(yscrollcommand=vsb.set)
+            self.tree.pack(side="left", fill="both", expand=True)
+            vsb.pack(side="right", fill="y")
             self.tree.bind("<Button-1>", self._on_click)
             btns = tk.Frame(self, bg=BG)
             btns.pack(fill="x", padx=18, pady=(0, 6))
@@ -377,7 +453,7 @@ class PlatformTab(tk.Frame):
                                                           padx=(8, 0))
             self._btn(btns, "Run Now", self.run_now).pack(side="left",
                                                           padx=(18, 0))
-            self._btn(btns, "Schedule…", self.schedule_dialog).pack(
+            self._btn(btns, "Schedule...", self.schedule_dialog).pack(
                 side="left", padx=(8, 0))
             self._btn(btns, "Stop", self.stop_run).pack(side="left",
                                                         padx=(8, 0))
@@ -406,7 +482,7 @@ class PlatformTab(tk.Frame):
         self.tag_txt.pack(fill="x", pady=(4, 8))
         mrow = tk.Frame(left, bg=BG)
         mrow.pack(fill="x")
-        self._btn(mrow, "Add media…", self.add_media).pack(side="left")
+        self._btn(mrow, "Add media...", self.add_media).pack(side="left")
         self.media_lbl = tk.Label(mrow, text="no media (text-only post)",
                                   bg=BG, fg=DIM, font=(FONT, 8))
         self.media_lbl.pack(side="left", padx=8)
@@ -483,7 +559,7 @@ class PlatformTab(tk.Frame):
                      if it["date"] else "")
             status = {"completed": "✓ done",
                       "failed": "failed",
-                      "running": "running…"}.get(it["status"],
+                      "running": "running..."}.get(it["status"],
                                                  it["status"] or "")
             tags = ()
             if it["status"] == "completed":
@@ -625,7 +701,7 @@ class PlatformTab(tk.Frame):
             return
         self.busy = True
         self.stop.clear()
-        self.state_lbl.configure(text="running — Chrome will open…",
+        self.state_lbl.configure(text="running — Chrome will open...",
                                  fg=self.spec["accent"])
         threading.Thread(target=self._work, args=(items,),
                          daemon=True).start()
@@ -673,11 +749,11 @@ class PlatformTab(tk.Frame):
             self.app.cfg["fbg_media"] = list(paths)
             save_cfg(self.app.cfg)
             self.media_lbl.configure(
-                text="%d file(s): %s…" % (len(paths),
+                text="%d file(s): %s..." % (len(paths),
                                           os.path.basename(paths[0])))
 
     def scan_groups(self):
-        self.state_lbl.configure(text="scanning groups…", fg=CYAN)
+        self.state_lbl.configure(text="scanning groups...", fg=CYAN)
 
         def work():
             wf = fbg_workflow
@@ -733,7 +809,7 @@ class PlatformTab(tk.Frame):
                   "_key": "fbg|%d" % int(time.time())}]
         self.busy = True
         self.stop.clear()
-        self.state_lbl.configure(text="posting to %d groups…" % len(groups),
+        self.state_lbl.configure(text="posting to %d groups..." % len(groups),
                                  fg=LIME)
         threading.Thread(target=self._work,
                          args=(items, {"groups": groups}),
@@ -774,21 +850,15 @@ class App(tk.Tk):
         self.slots = load_schedule()
         self._q = queue.Queue()
         self.busy = False
-        # centered on open + force-maximized (owner standard)
+        _probe_fonts(self)
+        install_dark_ttk(self)
+        # Open centered on the screen — exactly like the Xfer PC window
+        # (webview Center: true): a normal window, never force-maximized.
         self.update_idletasks()
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         w, h = min(1240, sw - 40), min(820, sh - 60)
         self.geometry("%dx%d+%d+%d" % (w, h, (sw - w) // 2,
                                        (sh - h) // 2))
-
-        def _reassert_zoomed(_w=self):
-            try:
-                if _w.state() != "zoomed":
-                    _w.state("zoomed")
-            except Exception:
-                pass
-        for _d in (10, 250, 800, 1500):
-            self.after(_d, _reassert_zoomed)
         self.minsize(980, 640)
         # Brand chrome parity with License Studio / WiFi Transfer:
         # website favicon + native dark title bar (DWM) + the ring/orb
@@ -803,69 +873,64 @@ class App(tk.Tk):
         self.body = tk.Frame(self, bg=BG)
         self.body.pack(fill="both", expand=True)
         self._tabs()
-        self._logbar()
-        self._footer()
+        self._footer()      # first bottom strip packed = the bottom-most
+        self._logbar()      # status line sits just above the footer
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         threading.Thread(target=self._scheduler_loop, daemon=True).start()
         self.after(200, self._drain)
 
     # ── chrome ────────────────────────────────────────────────────────
     def _wordmark(self):
-        """3SVerse wordmark header image - same header branding as the
-        xfer PC dashboard (gui.go header img) and License Studio.
-        Falls back to the plain-text wordmark when asset/PIL missing."""
-        try:
-            from PIL import Image, ImageTk
-            resampling = getattr(Image, "Resampling", Image)
-            path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                "3sverse_logo_header.png")
-            if not os.path.exists(path):
-                return None
-            img = Image.open(path).convert("RGBA")
-            if img.height > 58:
-                img = img.resize(
-                    (max(1, int(img.width * 58 / img.height)), 58),
-                    resampling.LANCZOS)
-            ph = ImageTk.PhotoImage(img)
+        """3SVerse wordmark rendered 60px tall — the exact header size of
+        the xfer PC dashboard (gui.go header img) and License Studio.
+        Embedded-first bytes, Pillow-crisp, PhotoImage+subsample fallback
+        so the wordmark image can never silently degrade to text."""
+        ph = _photo(_brand_bytes("3sverse_logo_header.png"), 60)
+        if ph is not None:
             self._hdr_logo = ph          # keep referenced
-            return ph
-        except Exception:
-            return None
+        return ph
 
     def _header(self):
-        bar = tk.Frame(self, bg=PANEL)
-        bar.pack(fill="x")
-        # Animated ring/orb band inside the header - the exact WiFi
-        # Transfer / 3sverse.com hero artwork and timing, same as the
-        # License Studio header band (branding_runtime.BrandAnimation).
+        # Stacked centered hero on the animated brand art — the exact
+        # design language of the License Studio header and the xfer PC
+        # dashboard (gui.go): wordmark on TOP, then the two-tone headline,
+        # then the eyebrow. All centered, never side by side. Version
+        # stays footer-only (License Studio rule).
+        band = tk.Frame(self, bg=BG)
+        band.pack(fill="x")
+        # Animated ring/orb hero band — the exact WiFi Transfer /
+        # 3sverse.com artwork and timing (120s ring, 140s orb, float).
         try:
             from branding_runtime import BrandAnimation
-            band = tk.Canvas(bar, bg=PANEL, highlightthickness=0,
+            hero = tk.Canvas(band, bg=BG, highlightthickness=0,
                              borderwidth=0, bd=0)
-            band.place(x=0, y=0, relwidth=1, relheight=1)
-            self._header_anim = BrandAnimation(self, band)
+            hero.place(x=0, y=0, relwidth=1, relheight=1)
+            self._header_anim = BrandAnimation(self, hero)
         except Exception:
             self._header_anim = None
-        inner = tk.Frame(bar, bg=PANEL)
-        inner.pack(fill="x", padx=18, pady=12)
+        inner = tk.Frame(band, bg=BG)
+        inner.pack(anchor="center", padx=24, pady=(26, 14))
         logo = self._wordmark()
         if logo:
-            tk.Label(inner, image=logo, bg=PANEL, bd=0).pack(side="left")
+            tk.Label(inner, image=logo, bg=BG, bd=0).pack(anchor="center")
         else:
-            tk.Label(inner, text="3SVERSE", bg=PANEL, fg=CYAN,
-                     font=(HEAD_FONT, 17, "bold")).pack(side="left")
-        tk.Label(inner, text=" SOCIAL MEDIA POSTER", bg=PANEL, fg=TEXT,
-                 font=(HEAD_FONT, 17, "bold")).pack(side="left")
-        tk.Label(inner, text="v%s" % VERSION, bg=PANEL, fg=DIM,
-                 font=(MONO, 10)).pack(side="left", padx=(10, 0))
-        about = tk.Label(inner, text="About", bg=PANEL, fg=PERI,
-                         cursor="hand2", font=(FONT, 9, "underline"))
-        about.pack(side="right")
-        about.bind("<Button-1>", lambda e: self.about())
-        make_grad_bar(bar, height=3).pack(fill="x")
+            tk.Label(inner, text="3SVERSE", bg=BG, fg=CYAN,
+                     font=(HEAD_FONT, 17, "bold")).pack(anchor="center")
+        trow = tk.Frame(inner, bg=BG)
+        trow.pack(anchor="center", pady=(6, 0))
+        tk.Label(trow, text="SOCIAL MEDIA ", bg=BG, fg=TEXT,
+                 font=(HEAD_FONT, 20)).pack(side="left")
+        tk.Label(trow, text="POSTER", bg=BG, fg=CYAN,
+                 font=(HEAD_FONT, 20)).pack(side="left")
+        lp.make_eyebrow(inner, "3SVerse · four-platform campaign console",
+                        color=DIM, bg=BG).pack(anchor="center", pady=(5, 0))
+        lp.make_grad_bar(self, height=3).pack(fill="x")
 
     def _tabs(self):
-        self.tabbar = tk.Frame(self.body, bg=PANEL)
+        # Tab row floats on the brand background (no panel strip); the
+        # active tab lifts into a FIELD chip — the License Studio tab
+        # treatment. Official platform marks lead every label.
+        self.tabbar = tk.Frame(self.body, bg=BG)
         self.tabbar.pack(fill="x")
         self.frames = {}
         self.tab_btns = {}
@@ -878,13 +943,13 @@ class App(tk.Tk):
             if logo:
                 b = tk.Label(self.tabbar, image=logo, compound="left",
                              text=" %s  " % spec["label"],
-                             bg=PANEL, fg=DIM, cursor="hand2",
+                             bg=BG, fg=DIM, cursor="hand2",
                              font=(HEAD_FONT, 11, "bold"), pady=9)
             else:
                 b = tk.Label(self.tabbar, text="  %s  " % spec["label"],
-                             bg=PANEL, fg=DIM, cursor="hand2",
+                             bg=BG, fg=DIM, cursor="hand2",
                              font=(HEAD_FONT, 11, "bold"), pady=9)
-            b.pack(side="left", padx=(6 if i == 0 else 2, 2))
+            b.pack(side="left", padx=(6 if i == 0 else 2, 2), pady=(4, 0))
             b.bind("<Button-1>", lambda e, k=key: self.show_tab(k))
             self.tab_btns[key] = b
         self.show_tab("linkedin")
@@ -897,7 +962,7 @@ class App(tk.Tk):
                 tab.pack_forget()
         for k, b in self.tab_btns.items():
             b.configure(fg=PLATS[k]["accent"] if k == key else DIM,
-                        bg=FIELD if k == key else PANEL)
+                        bg=FIELD if k == key else BG)
 
     def _logbar(self):
         bar = tk.Frame(self, bg=PANEL)
@@ -908,12 +973,27 @@ class App(tk.Tk):
         self.log_lbl.pack(fill="x", padx=14, pady=7)
 
     def _footer(self):
-        bar = tk.Frame(self, bg=BG)
-        bar.pack(fill="x", side="bottom")
-        tk.Label(bar, text="Developed by www.3SVerse.com (c) 2026 · "
-                           "independent vendor — not affiliated with "
+        # License Studio footer pattern: vendor note left, developed-by
+        # EXACT center, version + About right — place()-anchored so the
+        # centering survives any text length.
+        bar = tk.Frame(self, bg=PANEL, highlightbackground=BORDER,
+                       highlightthickness=1)
+        bar.pack(side="bottom", fill="x")
+        tk.Frame(bar, bg=PANEL, height=30).pack(fill="x")
+        tk.Label(bar, text="Independent vendor — not affiliated with "
                            "LinkedIn, Meta, YouTube or Facebook",
-                 bg=BG, fg=DIM, font=(FONT, 8)).pack(pady=4)
+                 bg=PANEL, fg=DIM, font=(FONT, 8)).place(
+            relx=0.0, rely=0.5, anchor="w", x=18)
+        tk.Label(bar, text="© 2026 3SVerse · Developed by www.3sverse.com",
+                 bg=PANEL, fg=DIM, font=(FONT, 8)).place(
+            relx=0.5, rely=0.5, anchor="center")
+        tk.Label(bar, text="v%s" % VERSION, bg=PANEL, fg=DIM,
+                 font=(MONO, 8)).place(relx=1.0, rely=0.5, anchor="e",
+                                       x=-56)
+        about = tk.Label(bar, text="About", bg=PANEL, fg=PERI,
+                         cursor="hand2", font=(FONT, 8, "underline"))
+        about.place(relx=1.0, rely=0.5, anchor="e", x=-16)
+        about.bind("<Button-1>", lambda e: self.about())
 
     # ── log ───────────────────────────────────────────────────────────
     def log(self, msg, color=None):

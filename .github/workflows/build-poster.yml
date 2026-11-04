@@ -39,7 +39,19 @@ jobs:
           echo "building Social Media Poster $v"
 
       - name: Install build deps
-        run: python -m pip install nuitka selenium
+        run: python -m pip install nuitka selenium pillow
+
+      # Bake the brand art (4 official platform marks, header wordmark,
+      # window icon) into the build as base64. EMBEDDED-FIRST keeps the
+      # tab marks and the header logo working in ONEFILE mode regardless
+      # of where __file__ or the payload extraction dir resolve — the
+      # v2.x exe silently fell back to text-only tabs when the PIL/disk
+      # lookup missed. Disk copies stay as a fallback in the payload.
+      - name: Embed brand assets
+        shell: bash
+        run: |
+          python -c "import base64; enc=lambda p: base64.b64encode(open(p,'rb').read()).decode('ascii'); open('embedded_brand_assets.py','w').write('EMBEDDED_LINKEDIN_B64 = \"%s\"\nEMBEDDED_META_B64 = \"%s\"\nEMBEDDED_YOUTUBE_B64 = \"%s\"\nEMBEDDED_FACEBOOK_B64 = \"%s\"\nEMBEDDED_LOGO_B64 = \"%s\"\nEMBEDDED_ICO_B64 = \"%s\"\n' % (enc('brand_linkedin.png'), enc('brand_meta.png'), enc('brand_youtube.png'), enc('brand_facebook.png'), enc('3sverse_logo_header.png'), enc('3sverse_icon.ico')))"
+          python -c "import embedded_brand_assets as e; assert all(getattr(e,k) for k in ('EMBEDDED_LINKEDIN_B64','EMBEDDED_META_B64','EMBEDDED_YOUTUBE_B64','EMBEDDED_FACEBOOK_B64','EMBEDDED_LOGO_B64','EMBEDDED_ICO_B64')); print('brand assets embedded OK (4 platform marks + wordmark + ico)')"
 
       - name: Build with Nuitka (onefile - single portable exe)
         shell: cmd
@@ -55,6 +67,9 @@ jobs:
           --onefile-tempdir-spec="%CACHE_DIR%/{PRODUCT}/{VERSION}"
           --python-flag=no_asserts,no_docstrings
           --include-package=selenium
+          --include-module=embedded_brand_assets
+          --include-module=PIL.Image
+          --include-module=PIL.ImageTk
           --include-data-file=3sverse_icon.ico=3sverse_icon.ico
           --include-data-file=3sverse_logo_header.png=3sverse_logo_header.png
           --include-data-file=bg_ring.png=bg_ring.png

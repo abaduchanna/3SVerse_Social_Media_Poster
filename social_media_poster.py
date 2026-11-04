@@ -37,7 +37,7 @@ import youtube_workflow
 import fbg_workflow
 
 APP_NAME = "3SVerse Social Media Poster"
-VERSION = "3.0.1"
+VERSION = "3.0.2"
 
 BG = lp.BG
 PANEL = lp.PANEL

@@ -15,6 +15,9 @@ Shared architecture (the proven one): **own Chrome profile per platform** (`%APP
 
 ---
 
+## Download (latest: social-poster-v3.0.2)
+`3SVerse_Social_Media_Poster.exe` — single Windows exe, no installer.
+
 ## Run it
 
 ```

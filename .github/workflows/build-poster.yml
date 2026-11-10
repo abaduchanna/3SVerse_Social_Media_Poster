@@ -11,7 +11,7 @@ name: Build Social Media Poster
 on:
   push:
     branches: [main]
-    paths: ["social_media_poster.py", "linkedin_poster.py", "linkedin_bridge.py", "meta_workflow.py", "youtube_workflow.py", "fbg_workflow.py", "web_workflow.py", "branding_runtime.py", "spiral.webp", "orb.webp", "brand_bg_*.png", "brand_linkedin.png", "brand_meta.png", "brand_youtube.png", "brand_facebook.png", "3sverse_icon.ico", "chrome-extension/**", ".github/workflows/build-poster.yml"]
+    paths: ["social_media_poster.py", "linkedin_poster.py", "linkedin_bridge.py", "meta_workflow.py", "youtube_workflow.py", "fbg_workflow.py", "web_workflow.py", "branding_runtime.py", "spiral.webp", "orb.webp", "brand_bg_*.png", "brand_linkedin.png", "brand_meta.png", "brand_youtube.png", "brand_facebook.png", "3sverse_icon.ico", "splash.png", "chrome-extension/**", ".github/workflows/build-poster.yml"]
   workflow_dispatch:
 
 permissions:
@@ -60,6 +60,7 @@ jobs:
           --enable-plugin=tk-inter
           --windows-console-mode=disable
           --windows-icon-from-ico=3sverse_icon.ico
+          --onefile-windows-splash-screen-image=splash.png
           --company-name="3S Verse"
           --product-name="3SVerse Social Media Poster"
           --file-version="${{ env.VERSION }}.0" --product-version="${{ env.VERSION }}.0"

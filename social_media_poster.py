@@ -1104,6 +1104,21 @@ class App(tk.Tk):
         self.destroy()
 
 
+def _close_onefile_splash():
+    """Close the Nuitka onefile boot splash (no-op outside onefile builds)."""
+    try:
+        if "NUITKA_ONEFILE_PARENT" in os.environ:
+            import tempfile
+            _f = os.path.join(
+                tempfile.gettempdir(),
+                "onefile_%d_splash_feedback.tmp"
+                % int(os.environ["NUITKA_ONEFILE_PARENT"]))
+            if os.path.exists(_f):
+                os.unlink(_f)
+    except Exception:
+        pass
+
+
 def main():
     if sys.platform == "win32":
         try:
@@ -1114,7 +1129,10 @@ def main():
                 ctypes.windll.user32.SetProcessDPIAware()
         except Exception:
             pass
-    App().mainloop()
+    _app = App()
+    # window is built: drop the boot splash
+    _app.after(200, _close_onefile_splash)
+    _app.mainloop()
 
 
 if __name__ == "__main__":

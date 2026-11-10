@@ -213,11 +213,15 @@ class BrandAnimation:
             h = self.canvas.winfo_height() or 700
         except Exception:
             return
-        rw, rh = self.REF_W, self.REF_H
+        # SCALE WITH THE WINDOW: the art keeps xfer's look (ring 52vw / orb 30vw) on
+        # windows bigger than xfer's 1160x800 opening size instead of freezing at the
+        # absolute 603/348 px (which left a cropped ring + tiny orb when maximised).
+        # Smaller windows keep the xfer absolute size, exactly as before.
+        rw, rh = max(float(w), self.REF_W), max(float(h), self.REF_H)
         targets = {"ring": None, "orb": None}
         ring = self._srcs.get("ring")
         if ring is not None:
-            aw = min(0.52 * rw, 640.0)          # 603.2 px at any size
+            aw = 0.52 * rw                      # 603.2 px on xfer's 1160 window, scales up
             ah = aw * ring.height / float(ring.width)   # CSS height:auto
             self._cx["ring"] = w + 0.24 * rw - aw / 2.0    # TOP-RIGHT
             self._cy["ring"] = -0.14 * rh + ah / 2.0
@@ -227,7 +231,7 @@ class BrandAnimation:
                 targets["ring"] = (aw, ah)
         orb = self._srcs.get("orb")
         if orb is not None:
-            aw = min(0.30 * rw, 380.0)          # 348 px at any size
+            aw = 0.30 * rw                      # 348 px on xfer's 1160 window, scales up
             self._cx["orb"] = -0.10 * rw + aw / 2.0        # BOTTOM-LEFT
             self._cy["orb"] = h + 0.22 * rh - aw / 2.0
             targets["orb"] = (aw, aw)           # orb asset is square

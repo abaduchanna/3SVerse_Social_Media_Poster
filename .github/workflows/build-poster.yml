@@ -6,12 +6,17 @@ name: Build Social Media Poster
 # NOTE: a onefile exe self-extracts into a cache dir at runtime, which
 # some antivirus static AI can flag; users may see a SmartScreen prompt
 # (More info → Run anyway) on first launch. Documented in README.
+#
+# Two builds ship from this one workflow during the Tkinter -> PySide6/Qt
+# migration: `build` (Tkinter, --enable-plugin=tk-inter) and `build_qt`
+# (PySide6, --enable-plugin=pyside6) - additive, the Tkinter exe is
+# untouched. Both attach to the SAME release tag.
 # Developed by www.3SVerse.com (c) 2026
 
 on:
   push:
     branches: [main]
-    paths: ["social_media_poster.py", "linkedin_poster.py", "linkedin_bridge.py", "meta_workflow.py", "youtube_workflow.py", "fbg_workflow.py", "web_workflow.py", "branding_runtime.py", "spiral.webp", "orb.webp", "brand_bg_*.png", "brand_linkedin.png", "brand_meta.png", "brand_youtube.png", "brand_facebook.png", "3sverse_icon.ico", "splash.png", "chrome-extension/**", ".github/workflows/build-poster.yml"]
+    paths: ["social_media_poster.py", "social_media_poster_qt.py", "linkedin_poster.py", "linkedin_bridge.py", "meta_workflow.py", "youtube_workflow.py", "fbg_workflow.py", "web_workflow.py", "branding_runtime.py", "native_titlebar_qt.py", "spiral.webp", "orb.webp", "brand_bg_*.png", "brand_linkedin.png", "brand_meta.png", "brand_youtube.png", "brand_facebook.png", "3sverse_icon.ico", "splash.png", "chrome-extension/**", ".github/workflows/build-poster.yml"]
   workflow_dispatch:
 
 permissions:
@@ -20,6 +25,8 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,10 +39,12 @@ jobs:
       # Single source of truth: VERSION in social_media_poster.py drives the
       # exe metadata AND the release tag.
       - name: Read version from social_media_poster.py
+        id: ver
         shell: pwsh
         run: |
           $v = (Select-String -Path social_media_poster.py -Pattern 'VERSION\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
           echo "VERSION=$v" >> $env:GITHUB_ENV
+          echo "version=$v" >> $env:GITHUB_OUTPUT
           echo "building Social Media Poster $v"
 
       - name: Install build deps
@@ -93,13 +102,93 @@ jobs:
           Move-Item dist\social_media_poster.exe dist\3SVerse_Social_Media_Poster.exe -Force
           (Get-Item dist\3SVerse_Social_Media_Poster.exe).Length
 
-      # NOTE: no actions/upload-artifact here - artifact storage quota
-      # would block the build. Release assets do NOT count against it.
+      - name: Upload Tk exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          retention-days: 1
+          name: exe-tk
+          path: dist/3SVerse_Social_Media_Poster.exe
+          if-no-files-found: error
+
+  build_qt:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Read version from social_media_poster.py
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path social_media_poster.py -Pattern 'VERSION\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+          echo "VERSION=$v" >> $env:GITHUB_ENV
+
+      - name: Install build deps
+        run: python -m pip install nuitka selenium pillow PySide6
+
+      - name: Embed brand assets
+        shell: bash
+        run: |
+          python -c "import base64; enc=lambda p: base64.b64encode(open(p,'rb').read()).decode('ascii'); open('embedded_brand_assets.py','w').write('EMBEDDED_LINKEDIN_B64 = \"%s\"\nEMBEDDED_META_B64 = \"%s\"\nEMBEDDED_YOUTUBE_B64 = \"%s\"\nEMBEDDED_FACEBOOK_B64 = \"%s\"\nEMBEDDED_LOGO_B64 = \"%s\"\nEMBEDDED_ICO_B64 = \"%s\"\nEMBEDDED_SPIRAL_B64 = \"%s\"\nEMBEDDED_ORB_B64 = \"%s\"\n' % (enc('brand_linkedin.png'), enc('brand_meta.png'), enc('brand_youtube.png'), enc('brand_facebook.png'), enc('3sverse_logo_header.png'), enc('3sverse_icon.ico'), enc('spiral.webp'), enc('orb.webp')))"
+
+      - name: Build with Nuitka (onefile, PySide6/Qt)
+        shell: cmd
+        run: >
+          python -m nuitka --onefile --assume-yes-for-downloads
+          --enable-plugin=pyside6
+          --windows-console-mode=disable
+          --windows-icon-from-ico=3sverse_icon.ico
+          --onefile-windows-splash-screen-image=splash.png
+          --company-name="3S Verse"
+          --product-name="3SVerse Social Media Poster"
+          --file-version="${{ env.VERSION }}.0" --product-version="${{ env.VERSION }}.0"
+          --file-description="3SVerse Social Media Poster Qt (LinkedIn / Meta / YouTube / FB Groups campaign scheduler)"
+          --onefile-tempdir-spec="%CACHE_DIR%/{PRODUCT}Qt/{VERSION}"
+          --python-flag=no_asserts,no_docstrings
+          --include-package=selenium
+          --include-module=embedded_brand_assets
+          --include-data-file=3sverse_icon.ico=3sverse_icon.ico
+          --include-data-file=3sverse_logo_header.png=3sverse_logo_header.png
+          --include-data-file=brand_linkedin.png=brand_linkedin.png
+          --include-data-file=brand_meta.png=brand_meta.png
+          --include-data-file=brand_youtube.png=brand_youtube.png
+          --include-data-file=brand_facebook.png=brand_facebook.png
+          --include-data-dir=chrome-extension=chrome-extension
+          --output-dir=dist social_media_poster_qt.py
+
+      - name: Rename exe
+        shell: pwsh
+        run: |
+          Move-Item dist\social_media_poster_qt.exe dist\3SVerse_Social_Media_Poster_Qt.exe -Force
+          (Get-Item dist\3SVerse_Social_Media_Poster_Qt.exe).Length
+
+      - name: Upload Qt exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          retention-days: 1
+          name: exe-qt
+          path: dist/3SVerse_Social_Media_Poster_Qt.exe
+          if-no-files-found: error
+
+  release:
+    needs: [build, build_qt]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all exes
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
 
       - name: Attach to release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: social-poster-v${{ env.VERSION }}
-          name: 3SVerse Social Media Poster ${{ env.VERSION }}
+          tag_name: social-poster-v${{ needs.build.outputs.version }}
+          name: 3SVerse Social Media Poster ${{ needs.build.outputs.version }}
           files: |
             dist/3SVerse_Social_Media_Poster.exe
+            dist/3SVerse_Social_Media_Poster_Qt.exe

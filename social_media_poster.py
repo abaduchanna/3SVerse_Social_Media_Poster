@@ -240,7 +240,14 @@ def scan_campaign(folder):
             d = days.setdefault(cur["day"], _blank(cur["day"]))
             d["title"] = cur["title"]
             d["text"] = "\n\n".join(body).strip()
-            d["hashtags"] = " ".join(tags[-1:]).strip()
+            # every hashtag line of the block, de-duplicated, in order
+            seen, merged = set(), []
+            for line in tags:
+                for tag in line.split():
+                    if tag.lower() not in seen:
+                        seen.add(tag.lower())
+                        merged.append(tag)
+            d["hashtags"] = " ".join(merged).strip()
             d["meta"] = dict(meta)
             fmt = meta.get("format")
             if fmt:
@@ -322,7 +329,13 @@ def platform_items(plat, posts, slots, cfg):
                 "time": slot.get("time"), "_key": key,
                 "status": (prog.get(key) or {}).get("status", "")}
         if plat == "linkedin":
-            item["media"] = [m for m in (p["video"], p["image"]) if m][:1]
+            # Images are the default for LinkedIn; a video is used only when
+            # the post is explicitly a reel/video (Format: reel|video|short).
+            if str(p["format"]).lower() in ("reel", "video", "short"):
+                order = (p["video"], p["image"])
+            else:
+                order = (p["image"], p["video"])
+            item["media"] = [m for m in order if m][:1]
         if plat == "meta":
             if p["format"] == "story":
                 item["media"] = [m for m in (p["image"], p["video"]) if m][:1]

@@ -35,7 +35,7 @@ import os
 import time
 
 DASHBOARD_URL_DEFAULT = (
-    "https://www.linkedin.com/company/144975022/admin/dashboard/")
+    "https://www.linkedin.com/company/144975022/admin/page-posts/published/")
 
 # ── content.js port: locator + state snapshot (chrome-free JS) ──────
 # Same selectors/labels as the extension's content script.
@@ -384,9 +384,10 @@ class WebPoster:
         """Extension postItem(): create → media → next → schedule →
         caption → final Schedule. Returns True on success."""
         self.hard_open()
-        self._wait_state(lambda s: s["createReady"], 60,
-                         "LinkedIn's Create control did not appear")
-        self._click("create")
+        self._wait_state(lambda s: s["createReady"] or s["startPostReady"], 60,
+                         "LinkedIn's Start a post control did not appear")
+        if not self._state()["startPostReady"]:
+            self._click("create")
         self._wait_state(lambda s: s["startPostReady"], 30,
                          "LinkedIn's Start a post control did not appear")
         self._click("startPost")

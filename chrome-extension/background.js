@@ -1,4 +1,4 @@
-const DASHBOARD_URL = "https://www.linkedin.com/company/144975022/admin/dashboard/";
+const DASHBOARD_URL = "https://www.linkedin.com/company/144975022/admin/page-posts/published/";
 
 const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 const normalizeText = value => String(value || "").normalize("NFKC").replace(/\s+/g, " ").trim();
@@ -215,9 +215,10 @@ async function configureSchedule(tabId, item) {
 async function postItem(item) {
   const tab = await workflowTab();
   await hardOpen(tab.id, DASHBOARD_URL);
-  await waitForState(tab.id, state => state.createReady, 60000, "LinkedIn's Create control did not appear");
+  await waitForState(tab.id, state => state.createReady || state.startPostReady, 60000, "LinkedIn's Start a post control did not appear");
   await foreground(tab.id, async () => {
-    await trustedClick(tab.id, "create");
+    const alreadyReady = await waitForState(tab.id, state => state.startPostReady, 1500).then(() => true).catch(() => false);
+    if (!alreadyReady) await trustedClick(tab.id, "create");
     await waitForState(tab.id, state => state.startPostReady, 30000, "LinkedIn's Start a post control did not appear");
     await trustedClick(tab.id, "startPost");
     await waitForState(tab.id, state => state.addMediaReady && state.editorReady, 30000, "LinkedIn's post composer did not become ready");
